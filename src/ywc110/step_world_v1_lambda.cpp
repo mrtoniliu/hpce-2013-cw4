@@ -26,44 +26,44 @@ void StepWorldV1Lambda(world_t &world, float dt, unsigned n)
 	auto kernel_xy = [&](unsigned x, unsigned y) {
 		unsigned index=y*w + x;
 
-				if((world.properties[index] & Cell_Fixed) || (world.properties[index] & Cell_Insulator)){
-					// Do nothing, this cell never changes (e.g. a boundary, or an interior fixed-value heat-source)
-					buffer[index]=world.state[index];
-				}else{
-					float contrib=inner;
-					float acc=inner*world.state[index];
+		if((world.properties[index] & Cell_Fixed) || (world.properties[index] & Cell_Insulator)){
+			// Do nothing, this cell never changes (e.g. a boundary, or an interior fixed-value heat-source)
+			buffer[index]=world.state[index];
+		}else{
+			float contrib=inner;
+			float acc=inner*world.state[index];
 
-					// Cell above
-					if(! (world.properties[index-w] & Cell_Insulator)) {
-						contrib += outer;
-						acc += outer * world.state[index-w];
-					}
+			// Cell above
+			if(! (world.properties[index-w] & Cell_Insulator)) {
+				contrib += outer;
+				acc += outer * world.state[index-w];
+			}
 
-					// Cell below
-					if(! (world.properties[index+w] & Cell_Insulator)) {
-						contrib += outer;
-						acc += outer * world.state[index+w];
-					}
+			// Cell below
+			if(! (world.properties[index+w] & Cell_Insulator)) {
+				contrib += outer;
+				acc += outer * world.state[index+w];
+			}
 
-					// Cell left
-					if(! (world.properties[index-1] & Cell_Insulator)) {
-						contrib += outer;
-						acc += outer * world.state[index-1];
-					}
+			// Cell left
+			if(! (world.properties[index-1] & Cell_Insulator)) {
+				contrib += outer;
+				acc += outer * world.state[index-1];
+			}
 
-					// Cell right
-					if(! (world.properties[index+1] & Cell_Insulator)) {
-						contrib += outer;
-						acc += outer * world.state[index+1];
-					}
+			// Cell right
+			if(! (world.properties[index+1] & Cell_Insulator)) {
+				contrib += outer;
+				acc += outer * world.state[index+1];
+			}
 
-					// Scale the accumulate value by the number of places contributing to it
-					float res=acc/contrib;
-					// Then clamp to the range [0,1]
-					res=std::min(1.0f, std::max(0.0f, res));
-					buffer[index] = res;
+			// Scale the accumulate value by the number of places contributing to it
+			float res=acc/contrib;
+			// Then clamp to the range [0,1]
+			res=std::min(1.0f, std::max(0.0f, res));
+			buffer[index] = res;
 
-				}
+		}
 	};
 
 	for(unsigned t=0;t<n;t++){
