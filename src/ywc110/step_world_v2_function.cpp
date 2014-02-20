@@ -53,7 +53,7 @@ void kernel_xy(uint32_t x, uint32_t y, uint32_t w, float alpha, float dt,
 		buffer[index] = res;
 
 	}
-};
+}
 
 //! Reference world stepping program
 /*! \param dt Amount to step the world by.  Note that large steps will be unstable.
