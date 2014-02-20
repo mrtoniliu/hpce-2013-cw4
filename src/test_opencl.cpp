@@ -13,6 +13,7 @@
 # include <alloca.h>
 #define __CL_ENABLE_EXCEPTIONS 
 #include "CL/cl.hpp"
+// #include "OpenCL/cl.hpp"
 
 int main(int argc, char *argv[])
 {
