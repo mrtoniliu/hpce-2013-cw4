@@ -22,8 +22,11 @@ bin/make_world: src/make_world.cpp src/heat.cpp
 	-mkdir -p bin
 	$(CXX) $(CPPFLAGS) $^ -o $@ 
 
+bin/step_world_v1_lambda: src/yl10313/step_world_v1_lambda.cpp src/heat.cpp
+	-mkdir -p bin
+	$(CXX) $(CPPFLAGS) $^ -o $@ 
 
-all: bin/render_world bin/step_world bin/make_world bin/test_opencl
+all: bin/render_world bin/step_world bin/make_world bin/test_opencl bin/step_world_v1_lambda
 
 
 clean: 
