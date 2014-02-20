@@ -30,10 +30,16 @@ bin/step_world_v2_function: src/yl10313/step_world_v2_function.cpp src/heat.cpp
 	-mkdir -p bin
 	$(CXX) $(CPPFLAGS) $^ -o $@ 
 
+bin/step_world_v3_opencl: src/yl10313/step_world_v3_opencl.cpp src/heat.cpp
+	-mkdir -p bin
+	$(CXX) $(CPPFLAGS) $^ -o $@ -framework OpenCL
+
+
 all: bin/render_world bin/step_world \
 	bin/make_world bin/test_opencl \
 	bin/step_world_v1_lambda\
-	bin/step_world_v2_function
+	bin/step_world_v2_function \
+	bin/step_world_v3_opencl
 
 
 
@@ -41,3 +47,8 @@ clean:
 	rm -f bin/*.o
 	rm -f bin/*
 	rm -f src/*.o
+
+diff: 
+	diff <(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000 ) \
+		 	<(./bin/make_world 100 0.1 | ./bin/step_world_v1_lambda 0.1 100000)
+
