@@ -7,12 +7,12 @@
 #include <cstdio>
 
 namespace hpce{
-	
+
 //! Create a square world with a standardised "slalom track"
 world_t MakeTestWorld(unsigned n, float alpha)
-{	
+{
 	std::vector<cell_flags_t> properties(n*n, (cell_flags_t)0);
-	
+
 	// Top, bottom, left, right boundary
 	for(unsigned i=0;i<n;i++){
 		properties[0*n+i]=Cell_Insulator;
@@ -20,12 +20,12 @@ world_t MakeTestWorld(unsigned n, float alpha)
 		properties[i*n+0]=Cell_Insulator;
 		properties[i*n+(n-1)]=Cell_Insulator;
 	}
-	
+
 	// Setup the corridors
 	unsigned low=(unsigned)std::floor(n*1.0/3);
 	unsigned mid=(unsigned)std::floor(n/2.0);
 	unsigned high=(unsigned)std::floor(n*2.0/3);
-	
+
 	// Horizontal branches
 	for(unsigned i=0;i<high;i++){
 		properties[low*n+i]=Cell_Insulator;
@@ -40,10 +40,10 @@ world_t MakeTestWorld(unsigned n, float alpha)
 	for(unsigned i=mid;i<high;i++){
 		properties[i*n+low]=Cell_Insulator;
 	}
-	
+
 	// Create state, all intially at ambient temperature
 	std::vector<float> state(n*n, 0.0f);
-	
+
 	// Create a band of constant heart source along the top
 	for(unsigned x=1;x<n-1;x++){
 		// Heat source
@@ -53,7 +53,7 @@ world_t MakeTestWorld(unsigned n, float alpha)
 	// And a point heat-sink in the mid bottom
 	state[(n-3)*n+mid]=0.0f;
 	properties[(n-3)*n+mid]=Cell_Fixed;
-	
+
 	// Now populate the actual world description
 	world_t world;
 	world.w=n;
@@ -62,25 +62,25 @@ world_t MakeTestWorld(unsigned n, float alpha)
 	world.properties=properties;
 	world.t=0.0f;	// Haven't started yet
 	world.state=state;
-	
+
 	return world;
 }
 
 //! Save the give world to a file
 void SaveWorld(std::ostream &dst, const world_t &world, bool binary)
-{	
+{
 	if(binary){
 		dst<<"HPCEHeatWorldV0Binary"<<std::endl;
 	}else{
 		dst<<"HPCEHeatWorldV0"<<std::endl;
 	}
 	dst<<world.w<<" "<<world.h<<" "<<world.alpha<<std::endl;
-	
+
 	dst<<"-";
 	if(!binary){
 		dst<<std::endl;
 	}
-	
+
 	for(unsigned y=0;y<world.h;y++){
 		if(binary){
 			dst.write((char*)&world.properties[y*world.w], world.w*4);
@@ -91,21 +91,21 @@ void SaveWorld(std::ostream &dst, const world_t &world, bool binary)
 			dst<<std::endl;
 		}
 	}
-	
+
 	dst<<"-";
 	if(!binary){
 		dst<<std::endl;
 	}
-	
+
 	// Save the output modifiers
 	std::ios fmt(NULL);
 	fmt.copyfmt(dst);
-	
+
 	dst<<std::fixed;	// Record with absolute precision
 	dst.precision(8);	// Want the state recorded with similar accuracy to a float
 	// Note that by recording in text rather than binary, we'll see an expansion in data
 	// size of around 3 times, and reading/writing will be much slower than for binary.
-	
+
 	for(unsigned y=0;y<world.h;y++){
 		if(binary){
 			dst.write((char*)&world.state[y*world.w], world.w*4);
@@ -116,9 +116,9 @@ void SaveWorld(std::ostream &dst, const world_t &world, bool binary)
 			dst<<std::endl;
 		}
 	}
-	
+
 	dst.copyfmt(fmt);
-	
+
 	dst<<"End"<<std::endl;
 }
 
@@ -126,7 +126,7 @@ void SaveWorld(std::ostream &dst, const world_t &world, bool binary)
 world_t LoadWorld(std::istream &src)
 {
 	bool binary=false;
-	
+
 	std::string header;
 	src>>header;
 	if(header=="HPCEHeatWorldV0"){
@@ -136,22 +136,22 @@ world_t LoadWorld(std::istream &src)
 	}else{
 		throw std::invalid_argument("LoadWorld : File does not start with HPCEHeatWorldV0.");
 	}
-	
+
 	world_t world;
-	
+
 	src>>world.w>>world.h>>world.alpha;
 	if(!src.good())
 		throw std::invalid_argument("LoadWorld : Corrupt input file, couldn't write initial world state (width, height, alpha).");
-	
+
 	world.properties.resize(world.w*world.h);
 	world.state.resize(world.w*world.h);
-	
+
 	char delim;
 	src>>delim;
 	if(delim!='-'){
 		throw std::invalid_argument("LoadWorld : Corrupt input file, missing hyphen before properties array.");
 	}
-	
+
 	for(unsigned y=0;y<world.h;y++){
 		if(binary){
 			src.read((char*)&world.properties[y*world.w], world.w*4);
@@ -174,12 +174,12 @@ world_t LoadWorld(std::istream &src)
 	}
 	if(!src.good())
 		throw std::invalid_argument("LoadWorld : Corrupt input file, one or more elements of properties could not be read.");
-	
+
 	src>>delim;
 	if(delim!='-'){
 		throw std::invalid_argument("LoadWorld : Corrupt input file, missing hyphen before state array.");
 	}
-	
+
 	for(unsigned y=0;y<world.h;y++){
 		if(binary){
 			src.read((char*)&world.state[y*world.w], world.w*4);
@@ -200,12 +200,12 @@ world_t LoadWorld(std::istream &src)
 	}
 	if(!src.good())
 		throw std::invalid_argument("LoadWorld : Corrupt input file, one or more elements of state could not be read.");
-	
+
 	src>>header;
 	if(header!="End"){
 		throw std::invalid_argument("LoadWorld : Corrupt input file, missing 'End' to terminate world description.");
 	}
-	
+
 	return world;
 }
 
@@ -249,7 +249,7 @@ void RenderWorld(const std::string &fileName, const world_t &world)
 	file[ 3] = (uint8_t)( sizeAll>> 8);
 	file[ 4] = (uint8_t)( sizeAll>>16);
 	file[ 5] = (uint8_t	)( sizeAll>>24);
-		
+
 	info[ 4] = (uint8_t)( w   );
 	info[ 5] = (uint8_t)( w>> 8);
 	info[ 6] = (uint8_t)( w>>16);
@@ -264,7 +264,7 @@ void RenderWorld(const std::string &fileName, const world_t &world)
 	info[25] = (uint8_t)( sizeData>> 8);
 	info[26] = (uint8_t)( sizeData>>16);
 	info[27] = (uint8_t)( sizeData>>24);
-		
+
 	// End stackoverflow excerpt
 
 	FILE *dst=stdout;
@@ -276,12 +276,12 @@ void RenderWorld(const std::string &fileName, const world_t &world)
 	try{
 		if(sizeof(file)!=fwrite(file, 1, sizeof(file), dst))
 			throw std::runtime_error("RenderWorld : Couldn't write bitmap header.");
-		
+
 		if(sizeof(info)!=fwrite(info, 1, sizeof(info), dst))
 			throw std::runtime_error("RenderWorld : Couldn't write bitmap info.");
-		
+
 		std::vector<uint8_t> scanline(w*3+padSize, 0);
-		
+
 		for(unsigned y=0;y<h;y++){
 			uint8_t *pDst=&scanline[0];
 			for(unsigned x=0;x<w;x++){
@@ -300,7 +300,7 @@ void RenderWorld(const std::string &fileName, const world_t &world)
 			if(scanline.size()!=fwrite(&scanline[0], 1, scanline.size(), dst))
 				throw std::runtime_error("RenderWorld : Couldn't write scanline.");
 		}
-		
+
 		if(dst!=stdout)
 			fclose(dst);
 	}catch(...){
@@ -317,69 +317,69 @@ void RenderWorld(const std::string &fileName, const world_t &world)
 void StepWorld(world_t &world, float dt, unsigned n)
 {
 	unsigned w=world.w, h=world.h;
-	
+
 	float outer=world.alpha*dt;		// We spread alpha to other cells per time
 	float inner=1-outer/4;				// Anything that doesn't spread stays
-	
+
 	// This is our temporary working space
 	std::vector<float> buffer(w*h);
-	
+
 	for(unsigned t=0;t<n;t++){
 		for(unsigned y=0;y<h;y++){
 			for(unsigned x=0;x<w;x++){
 				unsigned index=y*w + x;
-				
+
 				if((world.properties[index] & Cell_Fixed) || (world.properties[index] & Cell_Insulator)){
 					// Do nothing, this cell never changes (e.g. a boundary, or an interior fixed-value heat-source)
 					buffer[index]=world.state[index];
 				}else{
 					float contrib=inner;
 					float acc=inner*world.state[index];
-					
+
 					// Cell above
 					if(! (world.properties[index-w] & Cell_Insulator)) {
 						contrib += outer;
 						acc += outer * world.state[index-w];
 					}
-					
+
 					// Cell below
 					if(! (world.properties[index+w] & Cell_Insulator)) {
 						contrib += outer;
 						acc += outer * world.state[index+w];
 					}
-					
+
 					// Cell left
 					if(! (world.properties[index-1] & Cell_Insulator)) {
 						contrib += outer;
 						acc += outer * world.state[index-1];
 					}
-					
+
 					// Cell right
 					if(! (world.properties[index+1] & Cell_Insulator)) {
 						contrib += outer;
 						acc += outer * world.state[index+1];
 					}
-					
+
 					// Scale the accumulate value by the number of places contributing to it
 					float res=acc/contrib;
 					// Then clamp to the range [0,1]
 					res=std::min(1.0f, std::max(0.0f, res));
 					buffer[index] = res;
-					
+
 				} // end of if(insulator){ ... } else {
 			}  // end of for(x...
 		} // end of for(y...
-		
+
 		// All cells have now been calculated and placed in buffer, so we replace
 		// the old state with the new state
 		std::swap(world.state, buffer);
 		// Swapping rather than assigning is cheaper: just a pointer swap
 		// rather than a memcpy, so O(1) rather than O(w*h)
-	
+
 		world.t += dt; // We have moved the world forwards in time
-		
+
 	} // end of for(t...
 }
 
-	
+
 }; // namepspace hpce

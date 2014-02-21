@@ -13,7 +13,6 @@
 
 namespace hpce{
 namespace ywc110{
-
 std::string LoadSource(const char *fileName){
     // Don't forget to change your_login here
     std::string baseDir="src/ywc110";
@@ -38,7 +37,7 @@ std::string LoadSource(const char *fileName){
 	\param n Number of times to step the world
 	\note Overall time increment will be n*dt
 */
-void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
+void StepWorldV4DoubleBuffered(world_t &world, float dt, unsigned n)
 {
 	// Initialise OpenCL
 	std::vector<cl::Platform> platforms;
@@ -100,8 +99,8 @@ void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 
 	size_t cbBuffer=4*world.w*world.h;
 	cl::Buffer buffProperties(context, CL_MEM_READ_ONLY, cbBuffer);
-	cl::Buffer buffState(context, CL_MEM_READ_ONLY, cbBuffer);
-	cl::Buffer buffBuffer(context, CL_MEM_WRITE_ONLY, cbBuffer);
+	cl::Buffer buffState(context, CL_MEM_READ_WRITE, cbBuffer);
+	cl::Buffer buffBuffer(context, CL_MEM_READ_WRITE, cbBuffer);
 
 	cl::Kernel kernel(program, "kernel_xy");
 	kernel.setArg(0, world.alpha);
@@ -112,38 +111,28 @@ void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 
 	cl::CommandQueue queue(context, device);
 
-	queue.enqueueWriteBuffer(buffProperties, CL_TRUE, 0, cbBuffer, &world.properties[0]);
+	queue.enqueueWriteBuffer(buffProperties, CL_TRUE, 0, cbBuffer,
+		&world.properties[0]);
 
 	unsigned w=world.w, h=world.h;
-	// This is our temporary working space
 	std::vector<float> buffer(w*h);
+
+	queue.enqueueWriteBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
 
 	cl::NDRange offset(0, 0);               // Always start iterations at x=0, y=0
 	cl::NDRange globalSize(w, h);   // Global size must match the original loops
 	cl::NDRange localSize=cl::NullRange;    // We don't care about local size
 
 	for(unsigned t=0;t<n;t++){
-		cl::Event evCopiedState;
-		queue.enqueueWriteBuffer(buffState, CL_FALSE, 0, cbBuffer,
-			&world.state[0], NULL, &evCopiedState);
-
-		std::vector<cl::Event> kernelDependencies(1, evCopiedState);
-		cl::Event evExecutedKernel;
-		queue.enqueueNDRangeKernel(kernel, offset, globalSize,
-			localSize, &kernelDependencies, &evExecutedKernel);
-
-		std::vector<cl::Event> copyBackDependencies(1, evExecutedKernel);
-		queue.enqueueReadBuffer(buffBuffer, CL_TRUE, 0, cbBuffer, &buffer[0], &copyBackDependencies);
-
-		// All cells have now been calculated and placed in buffer, so we replace
-		// the old state with the new state
-		std::swap(world.state, buffer);
-		// Swapping rather than assigning is cheaper: just a pointer swap
-		// rather than a memcpy, so O(1) rather than O(w*h)
+		queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize);
+		queue.enqueueBarrier();
+		std::swap(buffState, buffBuffer);
 
 		world.t += dt; // We have moved the world forwards in time
 
 	} // end of for(t...
+	queue.enqueueReadBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
+
 }
 
 }; // namespace ywc110
@@ -171,7 +160,7 @@ int main(int argc, char *argv[])
 		std::cerr<<"Loaded world with w="<<world.w<<", h="<<world.h<<std::endl;
 
 		std::cerr<<"Stepping by dt="<<dt<<" for n="<<n<<std::endl;
-		hpce::ywc110::StepWorldV3OpenCL(world, dt, n);
+		hpce::ywc110::StepWorldV4DoubleBuffered(world, dt, n);
 
 		hpce::SaveWorld(std::cout, world, binary);
 	}catch(const std::exception &e){
