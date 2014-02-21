@@ -23,6 +23,7 @@ clean:
 	rm -f src/*.o
 
 # Use make diff actual=xxx
+expected = ../step_world
 diff:
-	diff <(./src/make_world 10 0.1 | ./src/step_world 0.1 10000)\
+	diff <(./src/make_world 10 0.1 | ./src/ywc110/${expected} 0.1 10000)\
 		<(./src/make_world 10 0.1 | ./src/ywc110/${actual} 0.1 10000) | colordiff

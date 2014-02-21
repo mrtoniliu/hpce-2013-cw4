@@ -115,22 +115,25 @@ void StepWorldV4DoubleBuffered(world_t &world, float dt, unsigned n)
 		&world.properties[0]);
 
 	unsigned w=world.w, h=world.h;
-	std::vector<float> buffer(w*h);
-
-	queue.enqueueWriteBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
 
 	cl::NDRange offset(0, 0);               // Always start iterations at x=0, y=0
 	cl::NDRange globalSize(w, h);   // Global size must match the original loops
 	cl::NDRange localSize=cl::NullRange;    // We don't care about local size
+
+	queue.enqueueWriteBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
 
 	for(unsigned t=0;t<n;t++){
 		queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize);
 		queue.enqueueBarrier();
 		std::swap(buffState, buffBuffer);
 
+		kernel.setArg(2, buffState);
+		kernel.setArg(4, buffBuffer);
+
 		world.t += dt; // We have moved the world forwards in time
 
 	} // end of for(t...
+
 	queue.enqueueReadBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
 
 }
