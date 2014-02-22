@@ -97,39 +97,6 @@ void kernel_xy(uint32_t x, uint32_t y, uint32_t w, const float *world_state, flo
 
 void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 {
-	unsigned w=world.w, h=world.h;
-	
-	float outer=world.alpha*dt;		// We spread alpha to other cells per time
-	float inner=1-outer/4;				// Anything that doesn't spread stays
-	
-	// This is our temporary working space
-	std::vector<float> buffer(w*h);
-	
-	for(unsigned t=0;t<n;t++){
-		for(unsigned y=0;y<h;y++){
-			for(unsigned x=0;x<w;x++){
-				kernel_xy(x,y,w,&world.state[0],inner,outer, &buffer[0], (const uint32_t*) &world.properties[0]);
-			}  // end of for(x...
-		} // end of for(y...
-		
-		// All cells have now been calculated and placed in buffer, so we replace
-		// the old state with the new state
-		std::swap(world.state, buffer);
-		// Swapping rather than assigning is cheaper: just a pointer swap
-		// rather than a memcpy, so O(1) rather than O(w*h)
-	
-		world.t += dt; // We have moved the world forwards in time
-		
-	} // end of for(t...
-}
-
-}; // namepspace yl10313
-	
-}; // namepspace hpce
-
-
-int main(int argc, char *argv[])
-{
 
 	// Choose a platform
 	std::vector<cl::Platform> platforms;
@@ -191,6 +158,49 @@ int main(int argc, char *argv[])
 		}
 		throw;
 	}
+
+	// size_t cbBuffer=4*world.w*world.h;
+	// cl::Buffer buffProperties(context, CL_MEM_READ_ONLY, cbBuffer);
+	// cl::Buffer buffState(context, CL_MEM_READ_ONLY, cbBuffer);
+	// cl::Buffer buffBuffer(context, CL_MEM_WRITE_ONLY, cbBuffer);
+	
+
+
+	unsigned w=world.w, h=world.h;
+	
+	float outer=world.alpha*dt;		// We spread alpha to other cells per time
+	float inner=1-outer/4;				// Anything that doesn't spread stays
+	
+	// This is our temporary working space
+	std::vector<float> buffer(w*h);
+	
+	for(unsigned t=0;t<n;t++){
+		for(unsigned y=0;y<h;y++){
+			for(unsigned x=0;x<w;x++){
+				kernel_xy(x,y,w,&world.state[0],inner,outer, &buffer[0], (const uint32_t*) &world.properties[0]);
+			}  // end of for(x...
+		} // end of for(y...
+		
+		// All cells have now been calculated and placed in buffer, so we replace
+		// the old state with the new state
+		std::swap(world.state, buffer);
+		// Swapping rather than assigning is cheaper: just a pointer swap
+		// rather than a memcpy, so O(1) rather than O(w*h)
+	
+		world.t += dt; // We have moved the world forwards in time
+		
+	} // end of for(t...
+}
+
+}; // namepspace yl10313
+	
+}; // namepspace hpce
+
+
+int main(int argc, char *argv[])
+{
+
+	
 
 
 
