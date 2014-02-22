@@ -97,7 +97,6 @@ void kernel_xy(uint32_t x, uint32_t y, uint32_t w, const float *world_state, flo
 
 void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 {
-
 	// Choose a platform
 	std::vector<cl::Platform> platforms;
  	cl::Platform::get(&platforms);
@@ -139,7 +138,7 @@ void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 	cl::Device device=devices.at(selectedDevice);
 
 
-	// create context
+	// create OpenCL context
 	cl::Context context(devices);
 
 	// Load cl source
@@ -159,36 +158,106 @@ void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 		throw;
 	}
 
-	// size_t cbBuffer=4*world.w*world.h;
-	// cl::Buffer buffProperties(context, CL_MEM_READ_ONLY, cbBuffer);
-	// cl::Buffer buffState(context, CL_MEM_READ_ONLY, cbBuffer);
-	// cl::Buffer buffBuffer(context, CL_MEM_WRITE_ONLY, cbBuffer);
-	
 
+	// Create the buffer used in the OpenCL Kernel
+	size_t cbBuffer=4*world.w*world.h;
+	cl::Buffer buffProperties(context, CL_MEM_READ_ONLY, cbBuffer);
+	cl::Buffer buffState(context, CL_MEM_READ_ONLY, cbBuffer);
+	cl::Buffer buffBuffer(context, CL_MEM_WRITE_ONLY, cbBuffer);
 
+	// Set kernel parameter
+	cl::Kernel kernel(program, "kernel_xy");
+
+	// Declare the variables
 	unsigned w=world.w, h=world.h;
-	
 	float outer=world.alpha*dt;		// We spread alpha to other cells per time
 	float inner=1-outer/4;				// Anything that doesn't spread stays
+
+	// bind the kernel arguments
+	kernel.setArg(0, buffState);
+	kernel.setArg(1, inner);
+	kernel.setArg(2, outer);
+	kernel.setArg(3, buffBuffer);
+	kernel.setArg(4, buffProperties);
+
+	// Create a command queue
+	cl::CommandQueue queue(context, device);
+
+	// Copy the fixed data over to the GPU
+	// Here the properties is constant array across all iteration
+	// "buffProperties" : is the GPU buffer name
+	// "CL_TRUE" : A flag to indicate we want synchronous operation, so the function will not complete until the copy has finished. 
+	// "0" : The starting offset within the GPU buffer.
+	// "cbBuffer" : The number of bytes to copy.
+	// "&world.properties[0]"" : Pointer to the data in host memory (DDR in this case) we want to copy.
+	queue.enqueueWriteBuffer(buffProperties, CL_TRUE, 0, cbBuffer, &world.properties[0]);
+
+
 	
 	// This is our temporary working space
 	std::vector<float> buffer(w*h);
 	
-	for(unsigned t=0;t<n;t++){
-		for(unsigned y=0;y<h;y++){
-			for(unsigned x=0;x<w;x++){
-				kernel_xy(x,y,w,&world.state[0],inner,outer, &buffer[0], (const uint32_t*) &world.properties[0]);
-			}  // end of for(x...
-		} // end of for(y...
+	// for(unsigned t=0;t<n;t++){
+	// 	for(unsigned y=0;y<h;y++){
+	// 		for(unsigned x=0;x<w;x++){
+	// 			kernel_xy(x,y,w,&world.state[0],inner,outer, &buffer[0], (const uint32_t*) &world.properties[0]);
+	// 		}  // end of for(x...
+	// 	} // end of for(y...
 		
+	// 	// All cells have now been calculated and placed in buffer, so we replace
+	// 	// the old state with the new state
+	// 	std::swap(world.state, buffer);
+	// 	// Swapping rather than assigning is cheaper: just a pointer swap
+	// 	// rather than a memcpy, so O(1) rather than O(w*h)
+	
+	// 	world.t += dt; // We have moved the world forwards in time
+		
+	// } // end of for(t...
+
+
+	for (int t = 0; t < n; ++t)
+	{
+
+		// copy current state over the GPU
+		// Asynchronously --> use CL_FALSE
+		cl::Event evCopiedState;
+		queue.enqueueWriteBuffer(buffState, CL_FALSE, 0, cbBuffer, &world.state[0], NULL, &evCopiedState);
+
+
+		// setting up the iteration space
+		// Always start iterations at x=0, y=0
+		cl::NDRange offset(0, 0);		
+
+		// Global size must match the original loops	
+		cl::NDRange globalSize(w, h);	
+		// We don't care about local size
+		cl::NDRange localSize=cl::NullRange;	
+
+
+		// establishes the dependencies of the kernel by creating a vector of all the things that 
+		// must complete before the kernel can run
+		// -- depend on "evCopiedState"
+		std::vector<cl::Event> kernelDependencies(1, evCopiedState);
+
+		// Use this event to tell when this kernel finishes
+		cl::Event evExecutedKernel;
+		queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize, &kernelDependencies, &evExecutedKernel);
+
+		// copy the results back after the kernel finishes
+		// Depends on the "evExecutedKernel"
+		// synchronous with buffer --> CL_TRUE
+		std::vector<cl::Event> copyBackDependencies(1, evExecutedKernel);
+		queue.enqueueReadBuffer(buffBuffer, CL_TRUE, 0, cbBuffer, &buffer[0], &copyBackDependencies);
+
 		// All cells have now been calculated and placed in buffer, so we replace
 		// the old state with the new state
 		std::swap(world.state, buffer);
 		// Swapping rather than assigning is cheaper: just a pointer swap
 		// rather than a memcpy, so O(1) rather than O(w*h)
-	
-		world.t += dt; // We have moved the world forwards in time
-		
+
+		// We have moved the world forwards in time
+		world.t += dt;
+
 	} // end of for(t...
 }
 
