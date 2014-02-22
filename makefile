@@ -34,12 +34,22 @@ bin/step_world_v3_opencl: src/yl10313/step_world_v3_opencl.cpp src/heat.cpp
 	-mkdir -p bin
 	$(CXX) $(CPPFLAGS) $^ -o $@ -framework OpenCL
 
+bin/step_world_v4_double_buffered: src/yl10313/step_world_v4_double_buffered.cpp src/heat.cpp
+	-mkdir -p bin
+	$(CXX) $(CPPFLAGS) $^ -o $@ -framework OpenCL
+
+bin/step_world_v5_packed_properties: src/yl10313/step_world_v5_packed_properties.cpp src/heat.cpp
+	-mkdir -p bin
+	$(CXX) $(CPPFLAGS) $^ -o $@ -framework OpenCL
+
 
 all: bin/render_world bin/step_world \
 	bin/make_world bin/test_opencl \
 	bin/step_world_v1_lambda\
 	bin/step_world_v2_function \
-	bin/step_world_v3_opencl
+	bin/step_world_v3_opencl \
+	bin/step_world_v4_double_buffered \
+	bin/step_world_v5_packed_properties
 
 
 

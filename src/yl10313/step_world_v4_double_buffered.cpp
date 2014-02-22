@@ -51,7 +51,7 @@ namespace yl10313{
 	\param n Number of times to step the world
 	\note Overall time increment will be n*dt
 */
-	
+
 // void kernel_xy(uint32_t x, uint32_t y, uint32_t w, const float *world_state, float inner, float outer, float *buffer, const uint32_t *world_properties)
 //  {
 //     unsigned index=y*w + x;
@@ -96,7 +96,7 @@ namespace yl10313{
 // 	} // end of if(insulator){ ... } else { 
 //  }
 
-void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
+void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 {
 	// Choose a platform
 	std::vector<cl::Platform> platforms;
@@ -163,8 +163,8 @@ void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 	// Create the buffer used in the OpenCL Kernel
 	size_t cbBuffer=4*world.w*world.h;
 	cl::Buffer buffProperties(context, CL_MEM_READ_ONLY, cbBuffer);
-	cl::Buffer buffState(context, CL_MEM_READ_ONLY, cbBuffer);
-	cl::Buffer buffBuffer(context, CL_MEM_WRITE_ONLY, cbBuffer);
+	cl::Buffer buffState(context, CL_MEM_READ_WRITE, cbBuffer);
+	cl::Buffer buffBuffer(context, CL_MEM_READ_WRITE, cbBuffer);
 
 	// Set kernel parameter
 	cl::Kernel kernel(program, "kernel_xy");
@@ -214,15 +214,15 @@ void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 	// 	world.t += dt; // We have moved the world forwards in time
 		
 	// } // end of for(t...
-
+	queue.enqueueWriteBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
 
 	for (int t = 0; t < n; ++t)
 	{
 
 		// copy current state over the GPU
 		// Asynchronously --> use CL_FALSE
-		cl::Event evCopiedState;
-		queue.enqueueWriteBuffer(buffState, CL_FALSE, 0, cbBuffer, &world.state[0], NULL, &evCopiedState);
+		// cl::Event evCopiedState;
+		
 
 
 		// setting up the iteration space
@@ -238,21 +238,25 @@ void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 		// establishes the dependencies of the kernel by creating a vector of all the things that 
 		// must complete before the kernel can run
 		// -- depend on "evCopiedState"
-		std::vector<cl::Event> kernelDependencies(1, evCopiedState);
+		// std::vector<cl::Event> kernelDependencies(1, evCopiedState);
 
 		// Use this event to tell when this kernel finishes
-		cl::Event evExecutedKernel;
-		queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize, &kernelDependencies, &evExecutedKernel);
+		// cl::Event evExecutedKernel;
+		// queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize, &kernelDependencies, &evExecutedKernel);
+		queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize);
+
+
+		queue.enqueueBarrier();
 
 		// copy the results back after the kernel finishes
 		// Depends on the "evExecutedKernel"
 		// synchronous with buffer --> CL_TRUE
-		std::vector<cl::Event> copyBackDependencies(1, evExecutedKernel);
-		queue.enqueueReadBuffer(buffBuffer, CL_TRUE, 0, cbBuffer, &buffer[0], &copyBackDependencies);
+		// std::vector<cl::Event> copyBackDependencies(1, evExecutedKernel);
+		
 
 		// All cells have now been calculated and placed in buffer, so we replace
 		// the old state with the new state
-		std::swap(world.state, buffer);
+		std::swap(buffState, buffBuffer);
 		// Swapping rather than assigning is cheaper: just a pointer swap
 		// rather than a memcpy, so O(1) rather than O(w*h)
 
@@ -260,6 +264,8 @@ void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 		world.t += dt;
 
 	} // end of for(t...
+
+	queue.enqueueReadBuffer(buffBuffer, CL_TRUE, 0, cbBuffer, &world.state[0]);
 }
 
 }; // namepspace yl10313
@@ -295,7 +301,7 @@ int main(int argc, char *argv[])
 		std::cerr<<"Loaded world with w="<<world.w<<", h="<<world.h<<std::endl;
 		
 		std::cerr<<"Stepping by dt="<<dt<<" for n="<<n<<std::endl;
-		hpce::yl10313::StepWorldV3OpenCL(world, dt, n);
+		hpce::yl10313::StepWorldV4DoubleBufferd(world, dt, n);
 		
 		hpce::SaveWorld(std::cout, world, binary);
 	}catch(const std::exception &e){
