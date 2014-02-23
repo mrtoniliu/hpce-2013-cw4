@@ -58,7 +58,19 @@ clean:
 	rm -f bin/*
 	rm -f src/*.o
 
-diff: 
-	diff <(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000 ) \
-		 	<(./bin/make_world 100 0.1 | ./bin/step_world_v1_lambda 0.1 100000)
+
+diffv1: 
+	diff <$(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000) <$(./bin/make_world 100 0.1 | ./bin/step_world_v1_lambda 0.1 100000)
+
+diffv2:
+	diff <$(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000) <$(./bin/make_world 100 0.1 | ./bin/step_world_v2_function 0.1 100000)
+
+diffv3:
+	diff <$(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000) <$(./bin/make_world 100 0.1 | ./bin/step_world_v3_opencl 0.1 100000)
+
+diffv4:
+	diff <$(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000) <$(./bin/make_world 100 0.1 | ./bin/step_world_v4_double_buffered 0.1 100000)
+
+diffv5:
+	diff <$(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000) <$(./bin/make_world 100 0.1 | ./bin/step_world_v5_packed_properties 0.1 100000)
 

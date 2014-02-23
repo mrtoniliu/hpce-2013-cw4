@@ -8,10 +8,11 @@
 
 // OpenCL define:
 #define __CL_ENABLE_EXCEPTIONS
+// #define __CL_USE_DEPRECATED_OPENCL_1_1_APIS
 #include "CL/cl.hpp"
 
 
-// kernal things
+// kernel things
 #include <fstream>
 #include <streambuf>
 
@@ -41,60 +42,6 @@ namespace yl10313{
             std::istreambuf_iterator<char>()
 		);
 	}
-
-	
-//! Create a square world with a standardised "slalom track"
-
-
-//! Reference world stepping program
-/*! \param dt Amount to step the world by.  Note that large steps will be unstable.
-	\param n Number of times to step the world
-	\note Overall time increment will be n*dt
-*/
-
-// void kernel_xy(uint32_t x, uint32_t y, uint32_t w, const float *world_state, float inner, float outer, float *buffer, const uint32_t *world_properties)
-//  {
-//     unsigned index=y*w + x;
-				
-// 	if((world_properties[index] & Cell_Fixed) || (world_properties[index] & Cell_Insulator)){
-// 		// Do nothing, this cell never changes (e.g. a boundary, or an interior fixed-value heat-source)
-// 		buffer[index]=world_state[index];
-// 	}else{
-// 		float contrib=inner;
-// 		float acc=inner*world_state[index];
-		
-// 		// Cell above
-// 		if(! (world_properties[index-w] & Cell_Insulator)) {
-// 			contrib += outer;
-// 			acc += outer * world_state[index-w];
-// 		}
-		
-// 		// Cell below
-// 		if(! (world_properties[index+w] & Cell_Insulator)) {
-// 			contrib += outer;
-// 			acc += outer * world_state[index+w];
-// 		}
-		
-// 		// Cell left
-// 		if(! (world_properties[index-1] & Cell_Insulator)) {
-// 			contrib += outer;
-// 			acc += outer * world_state[index-1];
-// 		}
-		
-// 		// Cell right
-// 		if(! (world_properties[index+1] & Cell_Insulator)) {
-// 			contrib += outer;
-// 			acc += outer * world_state[index+1];
-// 		}
-		
-// 		// Scale the accumulate value by the number of places contributing to it
-// 		float res=acc/contrib;
-// 		// Then clamp to the range [0,1]
-// 		res=std::min(1.0f, std::max(0.0f, res));
-// 		buffer[index] = res;
-		
-// 	} // end of if(insulator){ ... } else { 
-//  }
 
 void StepWorldV5PackedProperties(world_t &world, float dt, unsigned n)
 {
@@ -160,7 +107,13 @@ void StepWorldV5PackedProperties(world_t &world, float dt, unsigned n)
 	}
 
 
-	// Create the buffer used in the OpenCL Kernel
+
+	// Declare the variables
+	unsigned w=world.w, h=world.h;
+	float outer=world.alpha*dt;		// We spread alpha to other cells per time
+	float inner=1-outer/4;				// Anything that doesn't spread stays
+
+
 	size_t cbBuffer=4*world.w*world.h;
 	cl::Buffer buffProperties(context, CL_MEM_READ_ONLY, cbBuffer);
 	cl::Buffer buffState(context, CL_MEM_READ_WRITE, cbBuffer);
@@ -169,20 +122,24 @@ void StepWorldV5PackedProperties(world_t &world, float dt, unsigned n)
 	// Set kernel parameter
 	cl::Kernel kernel(program, "kernel_xy");
 
-	// Declare the variables
-	unsigned w=world.w, h=world.h;
-	float outer=world.alpha*dt;		// We spread alpha to other cells per time
-	float inner=1-outer/4;				// Anything that doesn't spread stays
+	// bind the kernel arguments
+	kernel.setArg(0, buffState);
+	kernel.setArg(1, inner);
+	kernel.setArg(2, outer);
+	kernel.setArg(3, buffBuffer);
+	kernel.setArg(4, buffProperties);
 
-	std::vector<uint32_t> packed(w*h, 0);
-	for (int y = 0; y < h; ++y)
+	// Create a command queue
+	cl::CommandQueue queue(context, device);
+
+	std::vector<uint32_t> packed(world.properties.begin(), world.properties.end());
+	for (unsigned y = 0; y < h; y++)
 	{
-		for (int x = 0; x < w; ++x)
+		for (unsigned x = 0; x < w; x++)
 		{
 			unsigned index=y*w + x;
-			packed[index]=world.properties[index];
-			if ((packed[index] & Cell_Fixed) || (packed[index] & Cell_Insulator))
-			{
+			// packed[index]=world.properties[index];
+			if (!packed[index]){
 				if ( !( packed[index-w] & Cell_Insulator) )
 				{
 					packed[index] += 0x4;
@@ -207,15 +164,14 @@ void StepWorldV5PackedProperties(world_t &world, float dt, unsigned n)
 		}
 	}
 
-	// bind the kernel arguments
-	kernel.setArg(0, buffState);
-	kernel.setArg(1, inner);
-	kernel.setArg(2, outer);
-	kernel.setArg(3, buffBuffer);
-	kernel.setArg(4, buffProperties);
+			// setting up the iteration space
+		// Always start iterations at x=0, y=0
+		cl::NDRange offset(0, 0);		
 
-	// Create a command queue
-	cl::CommandQueue queue(context, device);
+		// Global size must match the original loops	
+		cl::NDRange globalSize(w, h);	
+		// We don't care about local size
+		cl::NDRange localSize=cl::NullRange;	
 
 	// Copy the fixed data over to the GPU
 	// Here the properties is constant array across all iteration
@@ -226,25 +182,6 @@ void StepWorldV5PackedProperties(world_t &world, float dt, unsigned n)
 	// "&world.properties[0]"" : Pointer to the data in host memory (DDR in this case) we want to copy.
 	queue.enqueueWriteBuffer(buffProperties, CL_TRUE, 0, cbBuffer, &packed[0]);
 
-
-	
-	// This is our temporary working space
-	// std::vector<float> buffer(w*h);
-	
-	// for(unsigned t=0;t<n;t++){
-	// 	for(unsigned y=0;y<h;y++){
-	// 		for(unsigned x=0;x<w;x++){
-	// 			kernel_xy(x,y,w,&world.state[0],inner,outer, &buffer[0], (const uint32_t*) &world.properties[0]);
-	// 		}  // end of for(x...
-	// 	} // end of for(y...
-		
-	// 	// All cells have now been calculated and placed in buffer, so we replace
-	// 	// the old state with the new state
-	// 	std::swap(world.state, buffer);
-	// 	// Swapping rather than assigning is cheaper: just a pointer swap
-	// 	// rather than a memcpy, so O(1) rather than O(w*h)
-	
-	// 	world.t += dt; // We have moved the world forwards in time
 		
 	// } // end of for(t...
 	queue.enqueueWriteBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
@@ -252,53 +189,25 @@ void StepWorldV5PackedProperties(world_t &world, float dt, unsigned n)
 	for (int t = 0; t < n; ++t)
 	{
 
-		// copy current state over the GPU
-		// Asynchronously --> use CL_FALSE
-		// cl::Event evCopiedState;
-		
 
 
-		// setting up the iteration space
-		// Always start iterations at x=0, y=0
-		cl::NDRange offset(0, 0);		
-
-		// Global size must match the original loops	
-		cl::NDRange globalSize(w, h);	
-		// We don't care about local size
-		cl::NDRange localSize=cl::NullRange;	
-
-
-		// establishes the dependencies of the kernel by creating a vector of all the things that 
-		// must complete before the kernel can run
-		// -- depend on "evCopiedState"
-		// std::vector<cl::Event> kernelDependencies(1, evCopiedState);
-
-		// Use this event to tell when this kernel finishes
-		// cl::Event evExecutedKernel;
-		// queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize, &kernelDependencies, &evExecutedKernel);
 		queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize);
 
-
 		queue.enqueueBarrier();
-
-		// copy the results back after the kernel finishes
-		// Depends on the "evExecutedKernel"
-		// synchronous with buffer --> CL_TRUE
-		// std::vector<cl::Event> copyBackDependencies(1, evExecutedKernel);
-		
 
 		// All cells have now been calculated and placed in buffer, so we replace
 		// the old state with the new state
 		std::swap(buffState, buffBuffer);
-		// Swapping rather than assigning is cheaper: just a pointer swap
-		// rather than a memcpy, so O(1) rather than O(w*h)
+
+		kernel.setArg(0, buffState);
+		kernel.setArg(3, buffBuffer);
 
 		// We have moved the world forwards in time
 		world.t += dt;
 
 	} // end of for(t...
 
-	queue.enqueueReadBuffer(buffBuffer, CL_TRUE, 0, cbBuffer, &world.state[0]);
+	queue.enqueueReadBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
 }
 
 }; // namepspace yl10313
@@ -308,12 +217,6 @@ void StepWorldV5PackedProperties(world_t &world, float dt, unsigned n)
 
 int main(int argc, char *argv[])
 {
-
-	
-
-
-
-
 	float dt=0.1;
 	unsigned n=1;
 	bool binary=false;

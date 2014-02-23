@@ -51,7 +51,7 @@ namespace yl10313{
 	\param n Number of times to step the world
 	\note Overall time increment will be n*dt
 */
-	
+
 // void kernel_xy(uint32_t x, uint32_t y, uint32_t w, const float *world_state, float inner, float outer, float *buffer, const uint32_t *world_properties)
 //  {
 //     unsigned index=y*w + x;
@@ -159,6 +159,10 @@ void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 		throw;
 	}
 
+	// Declare the variables
+	unsigned w=world.w, h=world.h;
+	float outer=world.alpha*dt;		// We spread alpha to other cells per time
+	float inner=1-outer/4;				// Anything that doesn't spread stays
 
 	// Create the buffer used in the OpenCL Kernel
 	size_t cbBuffer=4*world.w*world.h;
@@ -169,10 +173,7 @@ void StepWorldV3OpenCL(world_t &world, float dt, unsigned n)
 	// Set kernel parameter
 	cl::Kernel kernel(program, "kernel_xy");
 
-	// Declare the variables
-	unsigned w=world.w, h=world.h;
-	float outer=world.alpha*dt;		// We spread alpha to other cells per time
-	float inner=1-outer/4;				// Anything that doesn't spread stays
+	
 
 	// bind the kernel arguments
 	kernel.setArg(0, buffState);

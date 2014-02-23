@@ -8,6 +8,7 @@
 
 // OpenCL define:
 #define __CL_ENABLE_EXCEPTIONS
+// #define __CL_USE_DEPRECATED_OPENCL_1_1_APIS
 #include "CL/cl.hpp"
 
 
@@ -160,11 +161,6 @@ void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 	}
 
 
-	// Create the buffer used in the OpenCL Kernel
-	size_t cbBuffer=4*world.w*world.h;
-	cl::Buffer buffProperties(context, CL_MEM_READ_ONLY, cbBuffer);
-	cl::Buffer buffState(context, CL_MEM_READ_WRITE, cbBuffer);
-	cl::Buffer buffBuffer(context, CL_MEM_READ_WRITE, cbBuffer);
 
 	// Set kernel parameter
 	cl::Kernel kernel(program, "kernel_xy");
@@ -173,6 +169,16 @@ void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 	unsigned w=world.w, h=world.h;
 	float outer=world.alpha*dt;		// We spread alpha to other cells per time
 	float inner=1-outer/4;				// Anything that doesn't spread stays
+
+	
+
+
+
+	// Create the buffer used in the OpenCL Kernel
+	size_t cbBuffer=4*world.w*world.h;
+	cl::Buffer buffProperties(context, CL_MEM_READ_ONLY, cbBuffer);
+	cl::Buffer buffState(context, CL_MEM_READ_WRITE, cbBuffer);
+	cl::Buffer buffBuffer(context, CL_MEM_READ_WRITE, cbBuffer);
 
 	// bind the kernel arguments
 	kernel.setArg(0, buffState);
@@ -214,6 +220,9 @@ void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 	// 	world.t += dt; // We have moved the world forwards in time
 		
 	// } // end of for(t...
+
+	
+
 	queue.enqueueWriteBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
 
 	for (int t = 0; t < n; ++t)
@@ -224,7 +233,6 @@ void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 		// cl::Event evCopiedState;
 		
 
-
 		// setting up the iteration space
 		// Always start iterations at x=0, y=0
 		cl::NDRange offset(0, 0);		
@@ -232,7 +240,9 @@ void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 		// Global size must match the original loops	
 		cl::NDRange globalSize(w, h);	
 		// We don't care about local size
-		cl::NDRange localSize=cl::NullRange;	
+		cl::NDRange localSize=cl::NullRange;
+		
+
 
 
 		// establishes the dependencies of the kernel by creating a vector of all the things that 
@@ -257,6 +267,10 @@ void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 		// All cells have now been calculated and placed in buffer, so we replace
 		// the old state with the new state
 		std::swap(buffState, buffBuffer);
+
+		kernel.setArg(0, buffState);
+		kernel.setArg(3, buffBuffer);
+
 		// Swapping rather than assigning is cheaper: just a pointer swap
 		// rather than a memcpy, so O(1) rather than O(w*h)
 
@@ -265,7 +279,7 @@ void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 
 	} // end of for(t...
 
-	queue.enqueueReadBuffer(buffBuffer, CL_TRUE, 0, cbBuffer, &world.state[0]);
+	queue.enqueueReadBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
 }
 
 }; // namepspace yl10313
