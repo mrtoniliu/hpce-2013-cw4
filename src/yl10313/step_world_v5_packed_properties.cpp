@@ -164,14 +164,14 @@ void StepWorldV5PackedProperties(world_t &world, float dt, unsigned n)
 		}
 	}
 
-			// setting up the iteration space
-		// Always start iterations at x=0, y=0
-		cl::NDRange offset(0, 0);		
+		// setting up the iteration space
+	// Always start iterations at x=0, y=0
+	cl::NDRange offset(0, 0);		
 
-		// Global size must match the original loops	
-		cl::NDRange globalSize(w, h);	
-		// We don't care about local size
-		cl::NDRange localSize=cl::NullRange;	
+	// Global size must match the original loops	
+	cl::NDRange globalSize(w, h);	
+	// We don't care about local size
+	cl::NDRange localSize=cl::NullRange;	
 
 	// Copy the fixed data over to the GPU
 	// Here the properties is constant array across all iteration
@@ -189,8 +189,6 @@ void StepWorldV5PackedProperties(world_t &world, float dt, unsigned n)
 	for (int t = 0; t < n; ++t)
 	{
 
-
-
 		queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize);
 
 		queue.enqueueBarrier();
@@ -207,7 +205,7 @@ void StepWorldV5PackedProperties(world_t &world, float dt, unsigned n)
 
 	} // end of for(t...
 
-	queue.enqueueReadBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
+	queue.enqueueReadBuffer(buffBuffer, CL_TRUE, 0, cbBuffer, &world.state[0]);
 }
 
 }; // namepspace yl10313

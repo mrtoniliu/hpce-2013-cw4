@@ -43,59 +43,6 @@ namespace yl10313{
 		);
 	}
 
-	
-//! Create a square world with a standardised "slalom track"
-
-
-//! Reference world stepping program
-/*! \param dt Amount to step the world by.  Note that large steps will be unstable.
-	\param n Number of times to step the world
-	\note Overall time increment will be n*dt
-*/
-
-// void kernel_xy(uint32_t x, uint32_t y, uint32_t w, const float *world_state, float inner, float outer, float *buffer, const uint32_t *world_properties)
-//  {
-//     unsigned index=y*w + x;
-				
-// 	if((world_properties[index] & Cell_Fixed) || (world_properties[index] & Cell_Insulator)){
-// 		// Do nothing, this cell never changes (e.g. a boundary, or an interior fixed-value heat-source)
-// 		buffer[index]=world_state[index];
-// 	}else{
-// 		float contrib=inner;
-// 		float acc=inner*world_state[index];
-		
-// 		// Cell above
-// 		if(! (world_properties[index-w] & Cell_Insulator)) {
-// 			contrib += outer;
-// 			acc += outer * world_state[index-w];
-// 		}
-		
-// 		// Cell below
-// 		if(! (world_properties[index+w] & Cell_Insulator)) {
-// 			contrib += outer;
-// 			acc += outer * world_state[index+w];
-// 		}
-		
-// 		// Cell left
-// 		if(! (world_properties[index-1] & Cell_Insulator)) {
-// 			contrib += outer;
-// 			acc += outer * world_state[index-1];
-// 		}
-		
-// 		// Cell right
-// 		if(! (world_properties[index+1] & Cell_Insulator)) {
-// 			contrib += outer;
-// 			acc += outer * world_state[index+1];
-// 		}
-		
-// 		// Scale the accumulate value by the number of places contributing to it
-// 		float res=acc/contrib;
-// 		// Then clamp to the range [0,1]
-// 		res=std::min(1.0f, std::max(0.0f, res));
-// 		buffer[index] = res;
-		
-// 	} // end of if(insulator){ ... } else { 
-//  }
 
 void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 {
@@ -221,49 +168,26 @@ void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 		
 	// } // end of for(t...
 
-	
+	// setting up the iteration space
+	// Always start iterations at x=0, y=0
+	cl::NDRange offset(0, 0);		
+
+	// Global size must match the original loops	
+	cl::NDRange globalSize(w, h);	
+	// We don't care about local size
+	cl::NDRange localSize=cl::NullRange;
+
 
 	queue.enqueueWriteBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
+
 
 	for (int t = 0; t < n; ++t)
 	{
 
-		// copy current state over the GPU
-		// Asynchronously --> use CL_FALSE
-		// cl::Event evCopiedState;
-		
-
-		// setting up the iteration space
-		// Always start iterations at x=0, y=0
-		cl::NDRange offset(0, 0);		
-
-		// Global size must match the original loops	
-		cl::NDRange globalSize(w, h);	
-		// We don't care about local size
-		cl::NDRange localSize=cl::NullRange;
-		
-
-
-
-		// establishes the dependencies of the kernel by creating a vector of all the things that 
-		// must complete before the kernel can run
-		// -- depend on "evCopiedState"
-		// std::vector<cl::Event> kernelDependencies(1, evCopiedState);
-
-		// Use this event to tell when this kernel finishes
-		// cl::Event evExecutedKernel;
-		// queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize, &kernelDependencies, &evExecutedKernel);
 		queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize);
 
-
 		queue.enqueueBarrier();
-
-		// copy the results back after the kernel finishes
-		// Depends on the "evExecutedKernel"
-		// synchronous with buffer --> CL_TRUE
-		// std::vector<cl::Event> copyBackDependencies(1, evExecutedKernel);
-		
-
+	
 		// All cells have now been calculated and placed in buffer, so we replace
 		// the old state with the new state
 		std::swap(buffState, buffBuffer);
@@ -271,15 +195,12 @@ void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 		kernel.setArg(0, buffState);
 		kernel.setArg(3, buffBuffer);
 
-		// Swapping rather than assigning is cheaper: just a pointer swap
-		// rather than a memcpy, so O(1) rather than O(w*h)
-
 		// We have moved the world forwards in time
 		world.t += dt;
 
 	} // end of for(t...
 
-	queue.enqueueReadBuffer(buffState, CL_TRUE, 0, cbBuffer, &world.state[0]);
+	queue.enqueueReadBuffer(buffBuffer, CL_TRUE, 0, cbBuffer, &world.state[0]);
 }
 
 }; // namepspace yl10313
@@ -289,11 +210,6 @@ void StepWorldV4DoubleBufferd(world_t &world, float dt, unsigned n)
 
 int main(int argc, char *argv[])
 {
-
-	
-
-
-
 
 	float dt=0.1;
 	unsigned n=1;
