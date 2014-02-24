@@ -1,6 +1,19 @@
 Imperial College, HPCE 2013
 CW4 - OpenCL
 
+Errata, 2014/02/23
+==================
+
+The package has been updated with a few compatibility patches
+and suggestions. See the bottom for suggestions.
+
+The only major bug is when developing the double-buffered
+(second to last) version - the language in the spec is badly
+written, and doesn't explain that you still need to
+call setArg within the loop. Thanks to Richard Evans and
+Oskar Weigl for pointing that out (and kudos to them for
+testing after each optimisation).
+
 Overal Goals
 ============
 
@@ -191,7 +204,7 @@ To see anything happen, you'll need to up the time significantly:
 	
 It is getting fairly slow, even at a resolution of 100x100, but in
 practise we'd like to increase resolution 10x in all three dimensions
-(both spatial axes + time), which increases the comput time by
+(both spatial axes + time), which increases the compute time by
 a factor of 1000.
 
 This type of computation is ideal for a GPU, as it maps very
@@ -302,7 +315,7 @@ The resulting code should look something like:
     for(unsigned t=0;t<n;t++){
         for(unsigned y=0;y<h;y++){
             for(unsigned x=0;x<w;x++){
-                inner_xy(x,y);
+                kernel_xy(x,y);
             }  // end of for(x...
         } // end of for(y...
 		
@@ -437,7 +450,7 @@ and:
 
 I used "const" on the world_state parameter to indicate that
 it is never modified inside the kernel. However, the
-converted `buffer` parameter cannot by const, as the kernel
+converted `buffer` parameter cannot be const, as the kernel
 must write to the array to produce output. This process
 helps show which arrays must be copied both to and from
 the GPU, and which only need to be copied one way.
@@ -557,7 +570,7 @@ code you would comment this out or make it optional):
 
     std::cerr<<"Found "<<platforms.size()<<" platforms\n";
 	for(unsigned i=0;i<platforms.size();i++){
-		std::string vendor=platforms[0].getInfo<CL_PLATFORM_VENDOR>();
+		std::string vendor=platforms[i].getInfo<CL_PLATFORM_VENDOR>();
 		std::cerr<<"  Platform "<<i<<" : "<<vendor<<"\n";
 	}
 
@@ -1312,9 +1325,26 @@ The only thing that will be left in the time loop is the enqueue of the
 kernel, and the swap to flip the world state with the buffer. First
 let's fix the buffer, by observing that swapping the host buffers
 now has no effect, and we need to swap the GPU buffers being passed
-to the kernel instead. One possibility would be to dynamically
-call `setArg` within the loop, but it is simpler to just swap the
-device buffers instead of swapping the host buffers:
+to the kernel instead.
+
+_Note_: This part was originally very unclear, and didn't explain
+you needed to move the setArgs into the loop. If you used a
+different method to solve this, without using `std::swap' on
+the buffers, then that is fine.
+
+Every time we call the kernel we want to flip the order of
+the buffers passed to the kernel, so we need to take the
+two `setArg` calls for the buffers:
+
+    kernel.setArg(3, buffState);
+	kernel.setArg(4, buffBuffer);
+
+and bring them inside the loop, just above the point where
+the kernel is executed.
+
+We also need to swap the two device pointers, so replace
+the `std::swap` of the host buffers with a swap of the
+device buffers:
 
 	std::swap(buffState, buffBuffer);	// Used to be std::swap(world.state, buffer)
 
@@ -1347,6 +1377,16 @@ kernel calls and barriers before the OpenCL run-time gets round
 to executing them. Indeed, it may only be the synchronised
 memory copy _after_ the loop that forces the chain of
 kernels and barriers to run at all.
+
+So the inner loop should now look something like:
+
+    kernel.setArg(3, buffState);
+	kernel.setArg(4, buffBuffer);
+	queue.enqueueNDRangeKernel(kernel, offset, globalSize, localSize);
+		
+	queue.enqueueBarrier();
+	
+	std::swap(buffState, buffBuffer);
 
 The kernel code itself is identical to that for the previous
 implementation, so you don't need to create a new .cl file. Sometimes
@@ -1515,6 +1555,47 @@ time.
 
 Zip up your directory, and submit it via blackboard.
 
+Compatibility patches
+=====================
+
+### Linking under Cygwin64
+
+The sparkly new 64-bit cygwin causes a few compatibility
+problems, the important one being that it can't link against
+a windows-style .lib like 32-bit cygwin could. If you get
+linker errors, there is now an additional `\opencl_sdk\lib\cygwin`
+directory, containing cygwin-specific lib files for OpenCL.
+Note that unix convention is that to link against a file
+called `libXYZ.a` you would pass -lXYZ, so if you uses the
+new libraries, you still pass -lOpenCL to the compiler.
+
+### OpenCL 1.1 compatibility
+
+A number of platforms provide OpenCL 1.2 development files,
+which means they reject some older constructs like clMemoryBarrier - it's
+an attempt to force people to move to newer APIs. There
+is a pre-processor flag which disables it:
+
+    #define CL_USE_DEPRECATED_OPENCL_1_1_APIS 
+
+which can either be set in the compiler, or added to source
+files. Thanks to Henry Poulton and Robert Bishop for
+pointing out the problem, and the fix.
+
+### Compiling under MacOS
+
+Tony Liu notes that adding the option:
+
+    -framework OpenCL
+
+to your compilation may help when trying to sort out header
+and linker directories.
+
+### Missing alloca.h
+
+Windows doesn't have a version of <alloca.h>, so if necessary
+just comment it out. Thanks to Henry Poulton.
+
 Debugging tips
 ==============
 
@@ -1535,6 +1616,11 @@ and after that it is possible to use printf. Note
 that the printf output from different GPU threads
 may become interleaved - they are executing truly
 in parallel, after all.
+
+In NVidia platforms you may be less lucky, as they try to keep
+some functionality CUDA-only for business reasons. However,
+you can always try using a software OpenCL implementation
+for testing purposes. Thanks to Richard Evans.
 
 ### Software implementations
 
@@ -1583,5 +1669,11 @@ so if possible tune things so that any given thread does not
 take more a few hundred milli-seconds. If you are on a server
 this is less of an issue, but even there you may find that
 the OS aborts kernel calls which take multiple seconds.
+
+### DoC machines with GPUs
+
+Richard Bennett points out that DoC list which machines
+have GPUs available: http://www.doc.ic.ac.uk/csg/facilities/lab/workstations
+
 
 [1] - http://www.khronos.org/registry/cl/specs/opencl-cplusplus-1.2.pdf

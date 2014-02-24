@@ -9,8 +9,13 @@
 #include <fstream>
 #include <streambuf>
 
-
+// Update: this doesn't work in windows - if necessary take it out. It is in
+// here because some unix platforms complained if it wasn't heere.
 # include <alloca.h>
+
+
+// Update: Work around deprecation warnings
+#define CL_USE_DEPRECATED_OPENCL_1_1_APIS 
 #define __CL_ENABLE_EXCEPTIONS 
 #include "CL/cl.hpp"
 
@@ -26,7 +31,7 @@ int main(int argc, char *argv[])
 		
 		std::cerr<<"Found "<<platforms.size()<<" platforms\n";
 		for(unsigned i=0;i<platforms.size();i++){
-			std::string vendor=platforms[0].getInfo<CL_PLATFORM_VENDOR>();
+			std::string vendor=platforms[i].getInfo<CL_PLATFORM_VENDOR>();
 			std::cerr<<"  Platform "<<i<<" : "<<vendor<<"\n";
 		}
 		
