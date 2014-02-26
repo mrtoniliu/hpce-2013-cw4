@@ -17,7 +17,9 @@
 // Update: Work around deprecation warnings
 #define CL_USE_DEPRECATED_OPENCL_1_1_APIS 
 #define __CL_ENABLE_EXCEPTIONS 
+#define __CL_USE_DEPRECATED_OPENCL_1_1_APIS
 #include "CL/cl.hpp"
+// #include "OpenCL/cl.hpp"
 
 int main(int argc, char *argv[])
 {

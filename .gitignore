@@ -1,0 +1,5 @@
+*.bmp
+.DS_Store
+bin/*
+opencl_sdk/*
+*.txt

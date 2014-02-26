@@ -1134,7 +1134,7 @@ but it is all leading up to this:
 
 The first part is setting up the iteration space, with the `offset`
 specifying that both x and y start and zero, and `globalSize` saying
-that we should loop up to x<w and y<h. The localSize parameter
+that we should loop up to `x<w` and `y<h`. The localSize parameter
 determines clustering of threads into local work-groups, which
 we don't yet care about here (as we're only using global work-groups).
 
@@ -1284,7 +1284,7 @@ and you should see something close to linear scaling
 
 So what is wrong? We have a number of problems here:
 
-1. Unecessary copying : we are copying the new state
+1. Unnecessary copying : we are copying the new state
 	from GPU buffer back to CPU buffer, doing nothing
 	with it, then copying the same data back again.
 
@@ -1322,8 +1322,8 @@ simple, make both the copies synchronous, so pass CL_TRUE instead
 of CL_FALSE, and remove any input and output events.
 
 The only thing that will be left in the time loop is the enqueue of the
-kernel, and the swap to flip the world state with the buffer. First
-let's fix the buffer, by observing that swapping the host buffers
+kernel, and the swap to flip th world state with thee buffer. First
+let's fix the buffer, by observing that swng appithe host buffers
 now has no effect, and we need to swap the GPU buffers being passed
 to the kernel instead.
 
@@ -1467,7 +1467,7 @@ above is an insulator, the first branch could be re-written to:
 		acc += outer * world_state[index-w];
 	}
 
-The other neighbours will need to depend on different bits in the properties.
+The other neighbours will need to depnd on diffeerent bits in the properties.
 
 ### Host code
 
