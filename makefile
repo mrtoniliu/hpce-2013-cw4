@@ -57,20 +57,40 @@ clean:
 	rm -f bin/*.o
 	rm -f bin/*
 	rm -f src/*.o
+	rm -f tmp/*
+	rm -rf tmp
+	rm -rf bin
+	rm -f *.bmp
+	rm -f *.txt
 
 
 diffv1: 
-	diff <(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000) <(./bin/make_world 100 0.1 | ./bin/step_world_v1_lambda 0.1 100000)
+	-mkdir -p tmp
+	./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000 > tmp/temp0
+	./bin/make_world 100 0.1 | ./bin/step_world_v1_lambda 0.1 100000 > tmp/temp1
+	diff tmp/temp0 tmp/temp1
 
 diffv2:
-	diff <(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000) <(./bin/make_world 100 0.1 | ./bin/step_world_v2_function 0.1 100000)
+	-mkdir -p tmp
+	./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000 > tmp/temp0
+	./bin/make_world 100 0.1 | ./bin/step_world_v2_function 0.1 100000 > tmp/temp2
+	diff tmp/temp0 tmp/temp2
 
 diffv3:
-	diff <(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000) <(./bin/make_world 100 0.1 | ./bin/step_world_v3_opencl 0.1 100000)
+	-mkdir -p tmp
+	./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000 > tmp/temp0
+	./bin/make_world 100 0.1 | ./bin/step_world_v3_opencl 0.1 100000 > tmp/temp3
+	diff tmp/temp0 tmp/temp3
 
 diffv4:
-	diff <(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000) <(./bin/make_world 100 0.1 | ./bin/step_world_v4_double_buffered 0.1 100000)
+	-mkdir -p tmp
+	./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000 > tmp/temp0
+	./bin/make_world 100 0.1 | ./bin/step_world_v4_double_buffered 0.1 100000 > tmp/temp4
+	diff tmp/temp0 tmp/temp4
 
 diffv5:
-	diff <(./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000) <(./bin/make_world 100 0.1 | ./bin/step_world_v5_packed_properties 0.1 100000)
+	-mkdir -p tmp
+	./bin/make_world 100 0.1 | ./bin/step_world 0.1 100000 > tmp/temp0
+	./bin/make_world 100 0.1 | ./bin/step_world_v5_packed_properties 0.1 100000 > tmp/temp5
+	diff tmp/temp0 tmp/temp5
 
